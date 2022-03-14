@@ -10,6 +10,8 @@ import (
 	"github.com/Travis-Britz/encrypt"
 )
 
+const testKey = "VGVzdEtleTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
+
 func TestEncryptDecrypt(t *testing.T) {
 	f, err := os.Open("testdata/plaintext.txt")
 	if err != nil {
@@ -51,6 +53,41 @@ func TestEncryptDecrypt(t *testing.T) {
 				t.Error(err)
 			}
 		})
+	}
+}
+
+func TestDecrypt(t *testing.T) {
+	key, err := encrypt.KeyFromBase64(testKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pt, err := os.Open("testdata/plaintext.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pt.Close()
+	plaintext, err := io.ReadAll(pt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ct, err := os.Open("testdata/ciphertext.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ct.Close()
+	ciphertext, err := io.ReadAll(ct)
+	decrypted, err := io.ReadAll(encrypt.NewReader(bytes.NewReader(ciphertext), key))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(plaintext, decrypted) {
+		t.Errorf("plaintext does not match")
+	}
+
+	ciphertext[0] ^= 0xff
+	_, err = io.ReadAll(encrypt.NewReader(bytes.NewReader(ciphertext), key))
+	if err == nil {
+		t.Fatalf("expected a decryption error")
 	}
 }
 
