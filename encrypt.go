@@ -138,16 +138,15 @@ type Reader struct {
 
 func (r *Reader) Read(p []byte) (n int, err error) {
 
-	if r.err != nil {
-		return 0, r.err
-	}
-	tmp := make([]byte, nonceSize+chunkSize+tagSize)
-
 	if len(r.plaintext) > 0 {
 		n = copy(p, r.plaintext)
 		r.plaintext = r.plaintext[n:]
 		return n, nil
 	}
+	if r.err != nil {
+		return 0, r.err
+	}
+	tmp := make([]byte, nonceSize+chunkSize+tagSize)
 	var nn int
 	if nn, err = io.ReadFull(r.r, tmp); errors.Is(err, io.ErrUnexpectedEOF) || err == io.EOF {
 		tmp = tmp[:nn]

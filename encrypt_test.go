@@ -63,6 +63,13 @@ func TestEncryptDecrypt(t *testing.T) {
 				t.Error(err)
 			}
 			if !bytes.Equal(plaintext, td.plaintext) {
+				// ff, err := os.Create(fmt.Sprintf("failed-%s.txt", td.name))
+				// if err != nil {
+				// 	log.Println(err)
+				// }
+				// defer ff.Close()
+				// log.Println(ff.Write(plaintext))
+				// ff.Close()
 				t.Errorf("plaintext does not match")
 			}
 		})
