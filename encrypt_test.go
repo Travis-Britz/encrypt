@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
+	"log"
 	"os"
 	"testing"
 
 	"github.com/Travis-Britz/encrypt"
 )
+
+const chunkSize = 65504
 
 const testKey = "VGVzdEtleTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
 
@@ -114,6 +118,38 @@ func TestKey_String(t *testing.T) {
 	}
 }
 
+func TestWriter_Write(t *testing.T) {
+	key, _ := encrypt.NewKey()
+	w := encrypt.NewWriter(&bytes.Buffer{}, key)
+	if _, err := w.Write([]byte("Hello, world!")); err != nil {
+		t.Error(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Error(err)
+	}
+	if err := w.Close(); err != nil {
+		// closing more than once shouldn't result in an error
+		t.Error(err)
+	}
+	n, err := w.Write([]byte("Hello, world!"))
+	if err == nil {
+		t.Errorf("expected an error when writing to a closed writer")
+	}
+	if n != 0 {
+		t.Errorf("expected n to be 0 when writing to a closed writer; got %v", n)
+	}
+
+	w = encrypt.NewWriter(&badWriter{failAt: 2}, key)
+	m, err := io.Copy(w, bytes.NewReader(plaintextData()))
+	if err == nil {
+		t.Errorf("expected bad writer to return an error")
+	}
+	if m != chunkSize {
+		t.Errorf("expected number of bytes written to equal the size of the first chunk; got %v", m)
+	}
+
+}
+
 func FuzzEncryptDecrypt(f *testing.F) {
 	key, _ := encrypt.NewKey()
 	f.Fuzz(func(t *testing.T, plaintext []byte) {
@@ -144,4 +180,57 @@ func encryptValidate(plaintext []byte, key encrypt.Key) error {
 		return errors.New("plaintext does not match")
 	}
 	return nil
+}
+
+type badWriter struct {
+	failAt int
+	n      int
+}
+
+func (w *badWriter) Write(p []byte) (n int, err error) {
+	w.n++
+	if w.n == w.failAt {
+		return 0, errors.New("failed write")
+	}
+	return len(p), nil
+}
+
+func plaintextData() []byte {
+	f, err := os.Open("testdata/plaintext.txt")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	data, err := io.ReadAll(f)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
+func ExampleNewWriter() {
+	plaintext := []byte("Hello, world!")
+	key, _ := encrypt.KeyFromBase64("VGVzdEtleTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
+
+	file, err := os.Create("file.crypt")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	encrypter := encrypt.NewWriter(file, key)
+	_, _ = encrypter.Write(plaintext)
+
+	// This example reads back the data from the file inside the same function,
+	// so we call Close now instead of deferring to force pending data to flush.
+	_ = encrypter.Close()
+
+	_, _ = file.Seek(0, io.SeekStart)
+	ciphertext, _ := io.ReadAll(file)
+
+	fmt.Printf("plaintext:  %v\n", plaintext)
+
+	// Each chunk of ciphertext begins with a 96-bit (12-byte) random nonce
+	// and ends with a 128-bit (16-byte) Message Authentication Code (MAC).
+	fmt.Printf("ciphertext: %v\n", ciphertext)
 }

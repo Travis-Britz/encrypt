@@ -6,17 +6,22 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"io"
 )
 
-const blocks = 4094
-const aesBlockSize = 16
-const chunkSize = aesBlockSize * blocks
-const nonceSize = 12
-const tagSize = 16
+// these values result in sectors of just under 64*1024 bytes
+const (
+	blocks       = 4094
+	aesBlockSize = 16
+	chunkSize    = aesBlockSize * blocks
+	nonceSize    = 12
+	tagSize      = 16
+)
+
+var ErrInvalidKeyLength = errors.New("expected 32-byte key")
 
 // NewWriter wraps w with a writer that encrypts all writes with key using AES-GCM.
+// Close MUST be called to write the final chunk of data.
 func NewWriter(w io.Writer, key Key) *Writer {
 	return &Writer{
 		w:   w,
@@ -205,7 +210,7 @@ func KeyFromBase64(s string) (key Key, err error) {
 	var k []byte
 	k, err = base64.StdEncoding.DecodeString(s)
 	if err == nil && len(k) != 32 {
-		err = fmt.Errorf("key decode: expected 32 bytes; got %v", len(k))
+		err = ErrInvalidKeyLength
 	}
 	copy(key[:], k)
 	return key, err
