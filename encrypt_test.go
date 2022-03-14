@@ -2,6 +2,7 @@ package encrypt_test
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"testing"
@@ -40,38 +41,47 @@ func TestEncryptDecrypt(t *testing.T) {
 		name:      "17 bytes",
 		plaintext: []byte("Hello, world!!!!!"),
 	}, {
-		name:      "full file (two chunks and a fragment)",
+		name:      "multi-chunk file",
 		plaintext: filedata,
 	}}
 
 	for _, td := range tt {
 		t.Run(td.name, func(t *testing.T) {
-			buf := &bytes.Buffer{}
-			w := encrypt.NewWriter(buf, randomKey)
-			if _, err := io.Copy(w, bytes.NewReader(td.plaintext)); err != nil {
+			if err := encryptValidate(td.plaintext, randomKey); err != nil {
 				t.Error(err)
-			}
-			if err := w.Close(); err != nil {
-				t.Error(err)
-			}
-			ciphertext, err := io.ReadAll(buf)
-			if err != nil {
-				t.Error(err)
-			}
-			plaintext, err := io.ReadAll(encrypt.NewReader(bytes.NewReader(ciphertext), randomKey))
-			if err != nil {
-				t.Error(err)
-			}
-			if !bytes.Equal(plaintext, td.plaintext) {
-				// ff, err := os.Create(fmt.Sprintf("failed-%s.txt", td.name))
-				// if err != nil {
-				// 	log.Println(err)
-				// }
-				// defer ff.Close()
-				// log.Println(ff.Write(plaintext))
-				// ff.Close()
-				t.Errorf("plaintext does not match")
 			}
 		})
 	}
+}
+
+func FuzzEncryptDecrypt(f *testing.F) {
+	key, _ := encrypt.NewKey()
+	f.Fuzz(func(t *testing.T, plaintext []byte) {
+		if err := encryptValidate(plaintext, key); err != nil {
+			t.Error(err)
+		}
+	})
+}
+
+func encryptValidate(plaintext []byte, key encrypt.Key) error {
+	buf := &bytes.Buffer{}
+	w := encrypt.NewWriter(buf, key)
+	if _, err := io.Copy(w, bytes.NewReader(plaintext)); err != nil {
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+	ciphertext, err := io.ReadAll(buf)
+	if err != nil {
+		return err
+	}
+	pt, err := io.ReadAll(encrypt.NewReader(bytes.NewReader(ciphertext), key))
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(pt, plaintext) {
+		return errors.New("plaintext does not match")
+	}
+	return nil
 }
