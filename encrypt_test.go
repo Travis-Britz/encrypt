@@ -2,6 +2,7 @@ package encrypt_test
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"io"
 	"os"
@@ -88,6 +89,28 @@ func TestDecrypt(t *testing.T) {
 	_, err = io.ReadAll(encrypt.NewReader(bytes.NewReader(ciphertext), key))
 	if err == nil {
 		t.Fatalf("expected a decryption error")
+	}
+}
+
+func TestKeyFromBase64(t *testing.T) {
+	if _, err := encrypt.KeyFromBase64("Bad Key"); err == nil {
+		t.Errorf("expected key decode error")
+	}
+
+	if _, err := encrypt.KeyFromBase64(base64.StdEncoding.EncodeToString([]byte("Bad Key"))); !errors.Is(err, encrypt.ErrInvalidKeyLength) {
+		t.Errorf("expected ErrInvalidKeyLength")
+	}
+
+	if _, err := encrypt.KeyFromBase64(testKey); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestKey_String(t *testing.T) {
+	key := encrypt.Key{}
+	copy(key[:], "TestKey0000000000000000000000000")
+	if key.String() != testKey {
+		t.Errorf("string did not match base64-encoded test key")
 	}
 }
 
