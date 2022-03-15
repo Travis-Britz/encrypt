@@ -1,3 +1,4 @@
+// Package encrypt provides io.Writer and io.Reader implementations useful for file encryption.
 package encrypt
 
 import (
@@ -18,10 +19,11 @@ const (
 	tagSize      = 16
 )
 
+// ErrInvalidKeyLength is returned by DecodeBase64Key when a key of the wrong size is decoded.
 var ErrInvalidKeyLength = errors.New("expected 32-byte key")
 
-// NewWriter wraps w with a writer that encrypts all writes with key using AES-GCM.
-// Close MUST be called to write the final chunk of data.
+// NewWriter returns a new Writer that encrypts data with key before writing to w.
+// Callers must call Close to write the final chunk of data.
 func NewWriter(w io.Writer, key Key) *Writer {
 	return &Writer{
 		w:   w,
@@ -29,6 +31,7 @@ func NewWriter(w io.Writer, key Key) *Writer {
 	}
 }
 
+// Writer is an io.Writer for encrypting data.
 type Writer struct {
 	w   io.Writer
 	key Key
@@ -39,18 +42,10 @@ type Writer struct {
 	closed bool
 }
 
-/*
-cases:
-write less than chunk size on new chunk
-write less than chunk size on existing chunk
-write more than chunk size on new chunk
-write more than chunk size on existing chunk
-write to an exactly full chunk with zero bytes
-
-only call  flush when the chunk is full or the writer is being closed
-
-*/
-// Callers must call Close or the final chunk will not be written to w.
+// Write writes p to an internal buffer to ensure that encrypted chunks have uniform size.
+// The buffer is encrypted and flushed as needed.
+//
+// Callers must call Close on w to write the final chunk from the buffer.
 func (w *Writer) Write(p []byte) (n int, err error) {
 
 	if w.closed {
@@ -75,6 +70,7 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 
 // func (w *Writer) Seek(offset int64, whence int) (int64, error){}
 
+// Close flushes any remaining data from the buffer to the underlying writer and prevents additional calls to Write.
 func (w *Writer) Close() error {
 	// The final chunk is likely to be smaller than the chunk size,
 	// so more writes would result in decoding errors.
@@ -82,6 +78,7 @@ func (w *Writer) Close() error {
 	return w.flush()
 }
 
+// flush encrypts the current buffer and writes to the underlying writer.
 func (w *Writer) flush() error {
 	if w.pos == 0 {
 		return nil
@@ -125,6 +122,9 @@ func encrypt(plaintext []byte, key Key) (ciphertext []byte, err error) {
 
 	return gcm.Seal(nonce, nonce, plaintext, nil), nil
 }
+
+// NewReader returns a new Reader for decrypting r,
+// where r was encrypted by a Writer using key.
 func NewReader(r io.Reader, key Key) *Reader {
 	return &Reader{
 		r:   r,
@@ -132,6 +132,7 @@ func NewReader(r io.Reader, key Key) *Reader {
 	}
 }
 
+// Reader is an io.Reader capable of decrypting data encrypted by Writer.
 type Reader struct {
 	r   io.Reader
 	key Key
@@ -141,8 +142,8 @@ type Reader struct {
 	err error
 }
 
+// Read implements io.Reader.
 func (r *Reader) Read(p []byte) (n int, err error) {
-
 	if len(r.plaintext) > 0 {
 		n = copy(p, r.plaintext)
 		r.plaintext = r.plaintext[n:]
@@ -193,20 +194,24 @@ func decrypt(ciphertext []byte, key Key) (plaintext []byte, err error) {
 	)
 }
 
-// NewKey generates a new random key using crypto/rand.
-// An error from rand.Reader is cause for panic.
+// NewKey generates a new random key for symmetric encryption.
+// A non-nil error is cause for panic.
 func NewKey() (key Key, err error) {
 	_, err = io.ReadFull(rand.Reader, key[:])
 	return key, err
 }
 
+// Key is a 256-bit key used for AES-GCM encryption and decryption.
 type Key [32]byte
 
+// String converts key to a string using standard base64 encoding,
+// which is generally more portable between programs than 32 bytes of random binary data.
 func (key Key) String() string {
 	return base64.StdEncoding.EncodeToString(key[:])
 }
 
-func KeyFromBase64(s string) (key Key, err error) {
+// DecodeBase64Key decodes a base64-encoded key.
+func DecodeBase64Key(s string) (key Key, err error) {
 	var k []byte
 	k, err = base64.StdEncoding.DecodeString(s)
 	if err == nil && len(k) != 32 {

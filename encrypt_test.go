@@ -62,7 +62,7 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 
 func TestDecrypt(t *testing.T) {
-	key, err := encrypt.KeyFromBase64(testKey)
+	key, err := encrypt.DecodeBase64Key(testKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,15 +97,15 @@ func TestDecrypt(t *testing.T) {
 }
 
 func TestKeyFromBase64(t *testing.T) {
-	if _, err := encrypt.KeyFromBase64("Bad Key"); err == nil {
+	if _, err := encrypt.DecodeBase64Key("Bad Key"); err == nil {
 		t.Errorf("expected key decode error")
 	}
 
-	if _, err := encrypt.KeyFromBase64(base64.StdEncoding.EncodeToString([]byte("Bad Key"))); !errors.Is(err, encrypt.ErrInvalidKeyLength) {
+	if _, err := encrypt.DecodeBase64Key(base64.StdEncoding.EncodeToString([]byte("Bad Key"))); !errors.Is(err, encrypt.ErrInvalidKeyLength) {
 		t.Errorf("expected ErrInvalidKeyLength")
 	}
 
-	if _, err := encrypt.KeyFromBase64(testKey); err != nil {
+	if _, err := encrypt.DecodeBase64Key(testKey); err != nil {
 		t.Error(err)
 	}
 }
@@ -210,7 +210,7 @@ func plaintextData() []byte {
 
 func ExampleNewWriter() {
 	plaintext := []byte("Hello, world!")
-	key, _ := encrypt.KeyFromBase64("VGVzdEtleTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
+	key, _ := encrypt.DecodeBase64Key("VGVzdEtleTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
 
 	file, err := os.Create("file.crypt")
 	if err != nil {
