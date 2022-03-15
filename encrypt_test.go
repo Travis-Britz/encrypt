@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"testing"
 
@@ -211,26 +210,18 @@ func plaintextData() []byte {
 func ExampleNewWriter() {
 	plaintext := []byte("Hello, world!")
 	key, _ := encrypt.DecodeBase64Key("VGVzdEtleTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
+	buf := &bytes.Buffer{}
 
-	file, err := os.Create("file.crypt")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	encrypter := encrypt.NewWriter(file, key)
+	encrypter := encrypt.NewWriter(buf, key)
 	_, _ = encrypter.Write(plaintext)
 
 	// This example reads back the data from the file inside the same function,
 	// so we call Close now instead of deferring to force pending data to flush.
 	_ = encrypter.Close()
 
-	_, _ = file.Seek(0, io.SeekStart)
-	ciphertext, _ := io.ReadAll(file)
-
 	fmt.Printf("plaintext:  %v\n", plaintext)
 
 	// Each chunk of ciphertext begins with a 96-bit (12-byte) random nonce
 	// and ends with a 128-bit (16-byte) Message Authentication Code (MAC).
-	fmt.Printf("ciphertext: %v\n", ciphertext)
+	fmt.Printf("ciphertext: %v\n", buf.Bytes())
 }
