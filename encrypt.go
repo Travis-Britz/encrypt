@@ -1,4 +1,17 @@
-// Package encrypt provides io.Writer and io.Reader implementations useful for file encryption.
+/*
+Package encrypt provides io.Writer and io.Reader implementations useful for symmetric file encryption.
+
+How It Works
+
+This implementation chunks the input into individually-encrypted segments of approximately 64KB in length,
+which allows reading and writing to operate on large files or streams without loading the entire file into memory at once.
+
+Each chunk is concatenated with an IV and Message Authentication Code,
+which results in encrypted files that are larger than the source data.
+For a 10GB file this results in approximately 4.3MB of additional data.
+
+Encryption uses AES-GCM with 256-bit keys.
+*/
 package encrypt
 
 import (
@@ -45,7 +58,7 @@ type Writer struct {
 // Write writes p to an internal buffer to ensure that encrypted chunks have uniform size.
 // The buffer is encrypted and flushed as needed.
 //
-// Callers must call Close on w to write the final chunk from the buffer.
+// Callers must call w.Close to flush the final chunk from the buffer.
 func (w *Writer) Write(p []byte) (n int, err error) {
 
 	if w.closed {
