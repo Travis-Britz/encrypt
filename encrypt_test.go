@@ -152,6 +152,9 @@ func TestWriter_Write(t *testing.T) {
 func FuzzReader_Seek(f *testing.F) {
 	key, _ := encrypt.DecodeBase64Key(testKey)
 	f.Add(int64(-1), 0, uint(10))
+	f.Add(int64(-1), 1, uint(10))
+	f.Add(int64(-1), 2, uint(10))
+	f.Add(int64(-512), 2, uint(10))
 	f.Add(int64(0), 0, uint(10))
 	f.Add(int64(0), 1, uint(10))
 	f.Add(int64(0), 2, uint(10))
@@ -268,4 +271,20 @@ func ExampleNewWriter() {
 	// Each chunk of ciphertext begins with a 96-bit (12-byte) random nonce
 	// and ends with a 128-bit (16-byte) Message Authentication Code (MAC).
 	fmt.Printf("ciphertext: %v\n", buf.Bytes())
+}
+
+func ExampleNewKey() {
+	// generate a new key
+	key, err := encrypt.NewKey()
+	if err != nil {
+		panic(err)
+	}
+
+	// save the key somewhere safe
+	// use key.String() for serialization
+
+	// encrypt data using the key
+	encrypter := encrypt.NewWriter(&bytes.Buffer{}, key)
+	_, _ = encrypter.Write([]byte("plaintext"))
+	_ = encrypter.Close()
 }
