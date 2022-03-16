@@ -147,7 +147,7 @@ func NewReader(r io.Reader, key Key) *Reader {
 	}
 }
 
-// Reader is an io.Reader capable of decrypting data encrypted by Writer.
+// Reader is an io.Reader capable of decrypting data that was encrypted by Writer.
 type Reader struct {
 	r   io.Reader
 	key Key
@@ -249,7 +249,7 @@ func DecodeBase64Key(s string) (key Key, err error) {
 //
 // Seek will return an error if r.r is not an io.Seeker.
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
-	var newOffset = offset
+	var newOffset int64
 	var overshot bool
 	var lastChunkSize int
 	if _, ok := r.r.(io.Seeker); !ok {
@@ -257,7 +257,11 @@ func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	}
 
 	switch whence {
-	// default:
+	default:
+		newOffset = offset
+	// Some implementations of Seek will return an error for an unknown whence value.
+	// However, since my fuzzer tests are comparing seek behavior directly to os.File
+	// I decided to mimic that implementation instead.
 	// 	return 0, errors.New("encrypt.Reader.Seek: invalid whence")
 	case io.SeekStart:
 		newOffset = offset
@@ -301,8 +305,12 @@ func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	}
 
 	if overshot {
+		// this should place the cursor at exactly the end of the file,
+		// to mirror the behavior of os.File when seek is past the end of the file
 		r.skip = lastChunkSize
 	} else {
+		// this should make the next call to Read skip to the correct offset
+		// within the next decoded chunk
 		r.skip = int(newOffset % chunkSize)
 	}
 	r.offset = newOffset
