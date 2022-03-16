@@ -149,6 +149,50 @@ func TestWriter_Write(t *testing.T) {
 
 }
 
+func FuzzReader_Seek(f *testing.F) {
+	key, _ := encrypt.DecodeBase64Key(testKey)
+	f.Add(int64(-1), 0, uint(10))
+	f.Add(int64(0), 0, uint(10))
+	f.Add(int64(0), 1, uint(10))
+	f.Add(int64(0), 2, uint(10))
+	f.Add(int64(1), 0, uint(10))
+	f.Add(int64(2), 1, uint(10))
+	f.Add(int64(3), 2, uint(10))
+	f.Fuzz(func(t *testing.T, seekOffset int64, whence int, readSize uint) {
+		file, err := os.Open("testdata/plaintext.txt")
+		if err != nil {
+			t.Error(err)
+		}
+		defer file.Close()
+		ct, err := os.Open("testdata/ciphertext.txt")
+		if err != nil {
+			t.Error(err)
+		}
+		defer ct.Close()
+		decrypter := encrypt.NewReader(ct, key)
+		pt1 := make([]byte, readSize)
+		pt2 := make([]byte, readSize)
+		n1, err1 := file.Seek(seekOffset, whence)
+		n2, err2 := decrypter.Seek(seekOffset, whence)
+		if whence >= io.SeekStart && whence <= io.SeekEnd {
+			if err1 == nil && err2 != nil || err1 != nil && err2 == nil {
+				t.Errorf("seek: expected errors to match; got %q and %q", err1, err2)
+			}
+		}
+		if n1 != n2 {
+			t.Errorf("seek: expected n1 to match n2; got %v/%q and %v/%q", n1, err1, n2, err2)
+		}
+		_, err1 = io.ReadFull(file, pt1)
+		_, err2 = io.ReadFull(decrypter, pt2)
+		if err1 == nil && err2 != nil || err1 != nil && err2 == nil {
+			t.Errorf("readfull: expected errors to match; got %q and %q", err1, err2)
+		}
+		if !bytes.Equal(pt1, pt2) {
+			t.Errorf("plaintext did not match: %q and %q", string(pt1), string(pt2))
+		}
+	})
+}
+
 func FuzzEncryptDecrypt(f *testing.F) {
 	key, _ := encrypt.NewKey()
 	f.Fuzz(func(t *testing.T, plaintext []byte) {

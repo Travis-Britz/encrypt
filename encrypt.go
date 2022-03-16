@@ -20,7 +20,9 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
+	"os"
 )
 
 // these values result in sectors of just under 64*1024 bytes
@@ -150,6 +152,9 @@ type Reader struct {
 	r   io.Reader
 	key Key
 
+	offset int64 // offset is the current read position, used by Seek for io.SeekCurrent.
+	skip   int   // skip are the number of bytes the next decrypted chunk should remove, set by Seek.
+
 	plaintext []byte
 
 	err error
@@ -157,6 +162,7 @@ type Reader struct {
 
 // Read implements io.Reader.
 func (r *Reader) Read(p []byte) (n int, err error) {
+	defer func() { r.offset += int64(n) }()
 	if len(r.plaintext) > 0 {
 		n = copy(p, r.plaintext)
 		r.plaintext = r.plaintext[n:]
@@ -177,8 +183,9 @@ func (r *Reader) Read(p []byte) (n int, err error) {
 	if r.plaintext, err = decrypt(tmp, r.key); err != nil {
 		return 0, err
 	}
-	n = copy(p, r.plaintext)
-	r.plaintext = r.plaintext[n:]
+	n = copy(p, r.plaintext[r.skip:])
+	r.plaintext = r.plaintext[n+r.skip:]
+	r.skip = 0
 	return n, nil
 }
 
@@ -232,4 +239,85 @@ func DecodeBase64Key(s string) (key Key, err error) {
 	}
 	copy(key[:], k)
 	return key, err
+}
+
+// Seek sets the offset for the next Read,
+// partially implementing io.Seeker:
+// io.SeekStart means relative to the start of the file,
+// io.SeekCurrent means relative to the current offset.
+// io.SeekEnd is only supported for specific types.
+//
+// Seek will return an error if r.r is not an io.Seeker.
+func (r *Reader) Seek(offset int64, whence int) (int64, error) {
+	var newOffset = offset
+	var overshot bool
+	var lastChunkSize int
+	if _, ok := r.r.(io.Seeker); !ok {
+		return 0, fmt.Errorf("encrypt.Reader.Seek: seek method not supported by %T", r.r)
+	}
+
+	switch whence {
+	// default:
+	// 	return 0, errors.New("encrypt.Reader.Seek: invalid whence")
+	case io.SeekStart:
+		newOffset = offset
+	case io.SeekCurrent:
+		newOffset = offset + r.offset
+	case io.SeekEnd:
+		var size int64
+		if s, ok := r.r.(sizer); ok {
+			size = s.Size()
+		} else if s, ok := r.r.(statSizer); ok {
+			fi, err := s.Stat()
+			if err != nil {
+				return 0, fmt.Errorf("encrypt.Reader.Seek: unable to determine size: %w", err)
+			}
+			size = fi.Size()
+		} else {
+			return 0, fmt.Errorf("encrypt.Reader.Seek: io.SeekEnd is not supported for %T", r.r)
+		}
+		const sectorSize = nonceSize + chunkSize + tagSize
+		lastChunkSize = int(size%sectorSize - (nonceSize + tagSize))
+		dataSize := size/sectorSize*chunkSize + int64(lastChunkSize)
+		newOffset = dataSize + offset
+		if newOffset > dataSize {
+			overshot = true
+		}
+	}
+
+	if newOffset < 0 {
+		return 0, errors.New("encrypt.Reader.Seek: negative position")
+	}
+
+	sectorStart := getSectorStart(newOffset)
+
+	s := r.r.(io.Seeker)
+	n, err := s.Seek(sectorStart, io.SeekStart)
+	if err != nil {
+		return 0, fmt.Errorf("encrypt.Reader.Seek: %w", err)
+	}
+	if n != sectorStart {
+		return 0, fmt.Errorf("encrypt.Reader.Seek: expected seek position to be %v; got %v", sectorStart, n)
+	}
+
+	if overshot {
+		r.skip = lastChunkSize
+	} else {
+		r.skip = int(newOffset % chunkSize)
+	}
+	r.offset = newOffset
+	r.plaintext = nil
+	return newOffset, nil
+}
+
+type statSizer interface {
+	Stat() (os.FileInfo, error)
+}
+type sizer interface {
+	Size() int64
+}
+
+func getSectorStart(offset int64) int64 {
+	const sectorSize = nonceSize + chunkSize + tagSize
+	return (offset / chunkSize) * sectorSize
 }
