@@ -80,6 +80,9 @@ func TestDecrypt(t *testing.T) {
 	}
 	defer ct.Close()
 	ciphertext, err := io.ReadAll(ct)
+	if err != nil {
+		t.Fatal(err)
+	}
 	decrypted, err := io.ReadAll(encrypt.NewReader(bytes.NewReader(ciphertext), key))
 	if err != nil {
 		t.Fatal(err)
