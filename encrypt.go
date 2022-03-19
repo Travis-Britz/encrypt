@@ -285,7 +285,10 @@ func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 			return 0, fmt.Errorf("encrypt.Reader.Seek: io.SeekEnd is not supported for %T", r.r)
 		}
 		const sectorSize = nonceSize + chunkSize + tagSize
-		lastChunkSize = int(size%sectorSize - (nonceSize + tagSize))
+		lastSectorSize := size % sectorSize
+		if lastSectorSize != 0 {
+			lastChunkSize = int(lastSectorSize - (nonceSize + tagSize))
+		}
 		dataSize := size/sectorSize*chunkSize + int64(lastChunkSize)
 		newOffset = dataSize + offset
 		if newOffset > dataSize {
