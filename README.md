@@ -1,4 +1,6 @@
 [![Go](https://github.com/Travis-Britz/encrypt/actions/workflows/go.yml/badge.svg)](https://github.com/Travis-Britz/encrypt/actions/workflows/go.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Travis-Britz/encrypt)](https://goreportcard.com/report/github.com/Travis-Britz/encrypt)
+
 
 Go (golang) file encryption reader/writer.
 
