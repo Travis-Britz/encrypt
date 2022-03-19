@@ -155,6 +155,53 @@ func TestWriter_Write(t *testing.T) {
 	}
 
 }
+func TestReader_Seek_BadSeeker(t *testing.T) {
+	key, _ := encrypt.DecodeBase64Key(testKey)
+	r := encrypt.NewReader(&bytes.Buffer{}, key)
+	if _, err := r.Seek(0, 0); err == nil {
+		t.Errorf("expected Seek to return an error because r does not implement io.Seeker; got nil")
+	}
+	r = encrypt.NewReader(&badSeeker{Reader: &bytes.Buffer{}, err: errors.New("seek failed")}, key)
+	if _, err := r.Seek(0, 0); err == nil {
+		t.Errorf("expected Seek to return an error from badSeeker; got nil")
+	}
+	r = encrypt.NewReader(&badSeeker{Reader: &bytes.Buffer{}, n: 1, err: nil}, key)
+	if _, err := r.Seek(0, 0); err == nil {
+		t.Errorf("expected Seek to return an error from bad seek position; got nil")
+	}
+	r = encrypt.NewReader(noSizeReadSeeker{}, key)
+	if _, err := r.Seek(-1, io.SeekEnd); err == nil {
+		t.Errorf("expected Seek to return an error for unknown size; got nil")
+	}
+
+	buf := &bytes.Buffer{}
+	w := encrypt.NewWriter(buf, key)
+	w.Write(make([]byte, chunkSize))
+	w.Close()
+	r = encrypt.NewReader(bytes.NewReader(buf.Bytes()), key)
+	if n, err := r.Seek(-1, io.SeekEnd); n != chunkSize-1 || err != nil {
+		t.Errorf("expected %d/nil; got %d/%s", chunkSize-1, n, err)
+	}
+}
+
+type noSizeReadSeeker struct{}
+
+func (rs noSizeReadSeeker) Read([]byte) (int, error) {
+	return 0, io.EOF
+}
+func (rs noSizeReadSeeker) Seek(n int64, whence int) (int64, error) {
+	return n, nil
+}
+
+type badSeeker struct {
+	io.Reader
+	n   int64
+	err error
+}
+
+func (s badSeeker) Seek(int64, int) (int64, error) {
+	return s.n, s.err
+}
 
 func FuzzReader_Seek(f *testing.F) {
 	key, _ := encrypt.DecodeBase64Key(testKey)
@@ -162,12 +209,14 @@ func FuzzReader_Seek(f *testing.F) {
 	f.Add(int64(-1), 1, uint(10))
 	f.Add(int64(-1), 2, uint(10))
 	f.Add(int64(-512), 2, uint(10))
+	f.Add(int64(-chunkSize), io.SeekEnd, uint(10))
 	f.Add(int64(0), 0, uint(10))
 	f.Add(int64(0), 1, uint(10))
 	f.Add(int64(0), 2, uint(10))
 	f.Add(int64(1), 0, uint(10))
 	f.Add(int64(2), 1, uint(10))
 	f.Add(int64(3), 2, uint(10))
+	f.Add(int64(3), 3, uint(10))
 	f.Fuzz(func(t *testing.T, seekOffset int64, whence int, readSize uint) {
 		file, err := os.Open("testdata/plaintext.txt")
 		if err != nil {
