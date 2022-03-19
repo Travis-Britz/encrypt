@@ -96,6 +96,10 @@ func TestDecrypt(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected a decryption error")
 	}
+
+	if _, err = io.ReadAll(encrypt.NewReader(bytes.NewReader([]byte{'A'}), key)); err.Error() != "malformed ciphertext" {
+		t.Errorf("expected a malformed ciphertext error")
+	}
 }
 
 func TestKeyFromBase64(t *testing.T) {
