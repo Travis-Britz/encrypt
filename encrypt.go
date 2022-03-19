@@ -121,18 +121,22 @@ func (w *Writer) flush() error {
 func encrypt(plaintext []byte, key Key) (ciphertext []byte, err error) {
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
+		// I think this error path is technically unreachable,
+		// since it looks like aes.NewCipher only returns an error for invalid key lengths,
+		// which shouldn't be possible since our keys are guaranteed to be 32 bytes.
 		return nil, err
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
+		// This error path also looks unreachable as long as the stdlib doesn't suddenly break aes block size constants.
 		return nil, err
 	}
 
 	nonce := make([]byte, gcm.NonceSize())
-	_, err = io.ReadFull(rand.Reader, nonce)
+	_, err = rand.Read(nonce)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encrypt.encrypt: crypto.rand.Reader failed: %w", err)
 	}
 
 	return gcm.Seal(nonce, nonce, plaintext, nil), nil
