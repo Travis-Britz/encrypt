@@ -13,8 +13,34 @@ import (
 )
 
 const chunkSize = 65504
-
 const testKey = "VGVzdEtleTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
+
+func ExampleNewKey() {
+	// generate a new key with crypto/rand
+	key, err := encrypt.NewKey()
+	if err != nil {
+		panic(err)
+	}
+
+	// save the key somewhere safe
+	fmt.Println(key.String())
+
+	// then use the key to encrypt data...
+}
+
+func ExampleNewWriter() {
+	// load a key that was saved somewhere secure
+	key, _ := encrypt.DecodeBase64Key("VGVzdEtleTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
+	plaintext := []byte("Hello, world!")
+
+	buf := &bytes.Buffer{}
+	encrypter := encrypt.NewWriter(buf, key)
+	encrypter.Write(plaintext)
+	encrypter.Close() // flushes the final chunk
+
+	fmt.Printf("plaintext:  %v\n", plaintext)
+	fmt.Printf("ciphertext: %v\n", buf.Bytes())
+}
 
 func TestEncryptDecrypt(t *testing.T) {
 	f, err := os.Open("testdata/plaintext.txt")
@@ -308,39 +334,4 @@ func plaintextData() []byte {
 		panic(err)
 	}
 	return data
-}
-
-func ExampleNewWriter() {
-	plaintext := []byte("Hello, world!")
-	key, _ := encrypt.DecodeBase64Key("VGVzdEtleTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
-	buf := &bytes.Buffer{}
-
-	encrypter := encrypt.NewWriter(buf, key)
-	_, _ = encrypter.Write(plaintext)
-
-	// This example reads back the data from the file inside the same function,
-	// so we call Close now instead of deferring to force pending data to flush.
-	_ = encrypter.Close()
-
-	fmt.Printf("plaintext:  %v\n", plaintext)
-
-	// Each chunk of ciphertext begins with a 96-bit (12-byte) random nonce
-	// and ends with a 128-bit (16-byte) Message Authentication Code (MAC).
-	fmt.Printf("ciphertext: %v\n", buf.Bytes())
-}
-
-func ExampleNewKey() {
-	// generate a new key
-	key, err := encrypt.NewKey()
-	if err != nil {
-		panic(err)
-	}
-
-	// save the key somewhere safe
-	// use key.String() for serialization
-
-	// encrypt data using the key
-	encrypter := encrypt.NewWriter(&bytes.Buffer{}, key)
-	_, _ = encrypter.Write([]byte("plaintext"))
-	_ = encrypter.Close()
 }
