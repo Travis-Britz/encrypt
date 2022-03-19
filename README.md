@@ -1,14 +1,13 @@
+[![GoDoc](https://pkg.go.dev/badge/github.com/Travis-Britz/encrypt)](https://pkg.go.dev/github.com/Travis-Britz/encrypt)
 [![Go](https://github.com/Travis-Britz/encrypt/actions/workflows/go.yml/badge.svg)](https://github.com/Travis-Britz/encrypt/actions/workflows/go.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Travis-Britz/encrypt)](https://goreportcard.com/report/github.com/Travis-Britz/encrypt)
 [![Coverage](https://codecov.io/gh/Travis-Britz/encrypt/branch/master/graphs/badge.svg?branch=master)](https://codecov.io/github/Travis-Britz/encrypt?branch=master)
 
-Go (golang) file encryption reader/writer.
+Keywords: Go (golang) AES file encryption reader/writer.
 
-# About
+## Overview
 
-Package `encrypt` provides io.Writer and io.Reader implementations useful for file encryption.
-
-[Documentation](https://pkg.go.dev/github.com/Travis-Britz/encrypt)
+Package `encrypt` provides io.Writer, io.Reader, and io.ReadSeeker implementations useful for file encryption.
 
 ## How It Works
 
