@@ -25,6 +25,10 @@ Limitations
 Although this package implements the io.Reader and io.Writer interfaces,
 it is not a general-purpose solution for encryption.
 
+One particular weakness of this approach is that although each individual chunk cannot be read or modified without the key,
+it does not prevent an attacker that has gained access to the encrypted files from re-ordering or removing chunks.
+If this is a concern, use a hashing function to verify file contents or find an encryption scheme that provides such protection.
+
 Additionally, the amount of data that a single key can safely be used to encrypt may be limited.
 */
 package encrypt
@@ -171,8 +175,8 @@ type Reader struct {
 	r   io.Reader
 	key Key
 
-	offset int64 // offset is the current read position, used by Seek for io.SeekCurrent.
-	skip   int   // skip are the number of bytes the next decrypted chunk should remove, set within Seek.
+	offset    int64 // offset is the current read position, used by Seek for io.SeekCurrent.
+	skip      int   // skip are the number of bytes the next decrypted chunk should remove, set within Seek.
 	plaintext []byte
 
 	err error
