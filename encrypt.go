@@ -1,16 +1,31 @@
 /*
-Package encrypt provides io.Writer and io.Reader implementations useful for symmetric file encryption.
+Package encrypt provides io.Writer, io.Reader, and io.ReadSeeker implementations useful for AES file encryption.
+
+This package intends to simplify situations where an application needs to encrypt potentially large files for storage,
+though it will operate on any Reader or Writer.
+
+Examples might include encrypting backups before saving them to a third party storage provider,
+or encrypting user uploads before storing them on a network filesystem.
 
 How It Works
 
 This implementation chunks the input into individually-encrypted segments of approximately 64KB in length,
 which allows reading and writing to operate on large files or streams without loading the entire file into memory at once.
 
-Each chunk is concatenated with an IV and Message Authentication Code,
-which results in encrypted files that are larger than the source data.
-For a 10GB file this results in approximately 4.3MB of additional data.
+Encrypted data will be larger than the source data by N*28 bytes,
+where N is the number of chunks the data is broken into.
+This is because each chunk is concatenated with its own random 96-bit nonce and 128-bit Message Authentication Code.
+For a 10GB file this translates to a size increase of roughly 4.3MB.
 
-Encryption uses AES-GCM with 256-bit keys.
+The actual encryption is performed by methods from the standard library,
+using AES-GCM with 256-bit keys.
+
+Limitations
+
+Although this package implements the io.Reader and io.Writer interfaces,
+it is not a general-purpose solution for encryption.
+
+Additionally, the amount of data that a single key can safely be used to encrypt may be limited.
 */
 package encrypt
 
@@ -25,7 +40,9 @@ import (
 	"os"
 )
 
-// these values result in sectors of just under 64*1024 bytes
+// these values result in sectors of just under 64*1024 bytes,
+// which was chosen somewhat arbitrarily but seemed like a decent balance of size increase,
+// memory usage, and maybe cpu cache.
 const (
 	blocks       = 4094
 	aesBlockSize = 16
@@ -82,8 +99,6 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 	}
 	return n, err
 }
-
-// func (w *Writer) Seek(offset int64, whence int) (int64, error){}
 
 // Close flushes any remaining data from the buffer to the underlying writer and prevents additional calls to Write.
 func (w *Writer) Close() error {
@@ -157,8 +172,7 @@ type Reader struct {
 	key Key
 
 	offset int64 // offset is the current read position, used by Seek for io.SeekCurrent.
-	skip   int   // skip are the number of bytes the next decrypted chunk should remove, set by Seek.
-
+	skip   int   // skip are the number of bytes the next decrypted chunk should remove, set within Seek.
 	plaintext []byte
 
 	err error
